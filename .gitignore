@@ -3,3 +3,4 @@ build/
 *.swp
 .build/
 DerivedData/
+dist/
