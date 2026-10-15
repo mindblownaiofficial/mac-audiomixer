@@ -70,7 +70,9 @@ enum CA {
     static func set<T>(_ object: AudioObjectID, _ address: AudioObjectPropertyAddress, _ value: T) throws {
         var a = address
         var v = value
-        try check(AudioObjectSetPropertyData(object, &a, 0, nil, UInt32(MemoryLayout<T>.size), &v), "SetPropertyData \(describe(address))")
+        try withUnsafePointer(to: &v) { p in
+            try check(AudioObjectSetPropertyData(object, &a, 0, nil, UInt32(MemoryLayout<T>.size), p), "SetPropertyData \(describe(address))")
+        }
     }
 
     /// Total channel count across all streams in the given scope (input or output).
