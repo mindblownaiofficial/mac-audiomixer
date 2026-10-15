@@ -28,3 +28,13 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$APP"
 
 echo "Built: $PWD/$APP"
+
+# ./build.sh --install  → copy into /Applications and (re)launch from there
+if [[ "${1:-}" == "--install" ]]; then
+  pkill -x AudioMixer 2>/dev/null || true
+  sleep 0.5
+  rm -rf "/Applications/Audio Mixer.app"
+  cp -R "$APP" "/Applications/Audio Mixer.app"
+  open "/Applications/Audio Mixer.app"
+  echo "Installed: /Applications/Audio Mixer.app"
+fi

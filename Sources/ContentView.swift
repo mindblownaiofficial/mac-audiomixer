@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var engine: MixerEngine
+    @EnvironmentObject private var settings: AppSettings
 
     private var playing: [AudioApp] { engine.visibleApps.filter(\.isPlaying) }
     private var silent: [AudioApp] { engine.visibleApps.filter { !$0.isPlaying } }
@@ -12,6 +13,12 @@ struct ContentView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 DefaultOutputCard()
+
+                if let message = settings.statusMessage {
+                    Label(message, systemImage: "info.circle")
+                        .font(.callout).foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                }
 
                 if engine.visibleApps.isEmpty {
                     emptyState
@@ -29,6 +36,13 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollContentBackground(.hidden)
+        .background(WindowAccessor { window in
+            // Launched as a login item with "start hidden": stay in the menu bar.
+            if settings.shouldHideWindowOnce {
+                settings.markWindowHidden()
+                window.orderOut(nil)
+            }
+        })
         .modernWindowChrome()
         .frame(minWidth: 680, minHeight: 460)
         .toolbar {
@@ -37,6 +51,14 @@ struct ContentView: View {
                     Label("Show silent apps", systemImage: engine.showSilentApps ? "eye" : "eye.slash")
                 }
                 .help("Also list apps that aren't playing audio right now")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    SettingsMenuItems()
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .help("Launch at login and install options")
             }
         }
         .navigationTitle("Audio Mixer")
@@ -328,4 +350,17 @@ extension View {
             .containerBackground(.thinMaterial, for: .window)
             .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
     }
+}
+
+/// Hands the hosting NSWindow to a callback once the view is in a window.
+struct WindowAccessor: NSViewRepresentable {
+    let onWindow: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { if let window = view.window { onWindow(window) } }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

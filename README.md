@@ -16,9 +16,13 @@ device you choose through a private aggregate device.
 ## Build & run
 
 ```bash
-./build.sh
-open "build/Audio Mixer.app"
+./build.sh            # builds build/Audio Mixer.app
+./build.sh --install  # …and installs it to /Applications, then launches it
 ```
+
+To have it start automatically, open the gear menu (toolbar or menu bar item) and turn on
+**Launch at login**. With **Start hidden in menu bar** on, a login launch keeps the window
+closed and just restores your routes in the background.
 
 The first time you route an app, macOS asks for **System Audio Recording** permission
 (System Settings → Privacy & Security → Screen & System Audio Recording). Allow it.
