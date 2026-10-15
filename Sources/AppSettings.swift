@@ -70,6 +70,7 @@ final class AppSettings: ObservableObject {
                 try SMAppService.mainApp.unregister()
             }
             statusMessage = nil
+            DebugLog.write("SMAppService \(enabled ? "registered" : "unregistered") login item; status=\(SMAppService.mainApp.status.rawValue)")
         } catch {
             statusMessage = "Login item: \(error.localizedDescription)"
             DebugLog.write("SMAppService \(enabled ? "register" : "unregister") failed: \(error)")
