@@ -46,6 +46,9 @@ final class MixerEngine: ObservableObject {
         let image: NSImage
         if let path = app.bundlePath {
             image = NSWorkspace.shared.icon(forFile: path)
+        } else if app.name == "System sounds",
+                  let symbol = NSImage(systemSymbolName: "bell.badge.waveform.fill", accessibilityDescription: nil) {
+            image = symbol.withSymbolConfiguration(.init(pointSize: 28, weight: .regular)) ?? symbol
         } else {
             image = NSWorkspace.shared.icon(for: .unixExecutable)
         }
@@ -54,6 +57,9 @@ final class MixerEngine: ObservableObject {
     }
 
     func deviceUID(for app: AudioApp) -> String { assignments[app.id] ?? "" }
+    func deviceName(for app: AudioApp) -> String {
+        devices.first { $0.uid == assignments[app.id] }?.name ?? "System default"
+    }
     func volume(for app: AudioApp) -> Float { volumes[app.id] ?? 1 }
     func isRouted(_ app: AudioApp) -> Bool { routes[app.id] != nil }
 

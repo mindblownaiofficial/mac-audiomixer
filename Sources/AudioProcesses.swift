@@ -44,6 +44,14 @@ struct AudioApp: Identifiable {
 }
 
 enum AppGrouper {
+    /// System daemons that play audio but have no app bundle.
+    static let friendlyDaemonNames: [String: String] = [
+        "systemsoundserverd": "System sounds",
+        "coreaudiod": "Core Audio",
+        "avconferenced": "FaceTime / Continuity",
+        "VoiceOver": "VoiceOver",
+    ]
+
     static func group(_ processes: [AudioProcess]) -> [AudioApp] {
         var apps: [String: AudioApp] = [:]
         let me = getpid()
@@ -63,7 +71,7 @@ enum AppGrouper {
                 name = exePath.map { ($0 as NSString).lastPathComponent } ?? bundleID
             } else if let exePath {
                 key = exePath
-                name = (exePath as NSString).lastPathComponent
+                name = friendlyDaemonNames[(exePath as NSString).lastPathComponent] ?? (exePath as NSString).lastPathComponent
             } else {
                 key = "pid-\(process.pid)"
                 name = "Process \(process.pid)"

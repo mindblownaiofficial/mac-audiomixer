@@ -1,133 +1,278 @@
 import SwiftUI
 
+// MARK: - Main window
+
 struct ContentView: View {
     @EnvironmentObject private var engine: MixerEngine
 
+    private var playing: [AudioApp] { engine.visibleApps.filter(\.isPlaying) }
+    private var silent: [AudioApp] { engine.visibleApps.filter { !$0.isPlaying } }
+
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            if engine.visibleApps.isEmpty {
-                emptyState
-            } else {
-                List(engine.visibleApps) { app in
-                    AppRow(app: app)
-                        .listRowSeparator(.visible)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                DefaultOutputCard()
+
+                if engine.visibleApps.isEmpty {
+                    emptyState
+                } else {
+                    if !playing.isEmpty {
+                        AppSection(title: "Now playing", apps: playing)
+                    }
+                    if !silent.isEmpty {
+                        AppSection(title: "Silent", apps: silent)
+                    }
                 }
-                .listStyle(.inset)
             }
-            Divider()
-            footer
+            .padding(24)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
-        .frame(minWidth: 640, minHeight: 360)
+        .scrollContentBackground(.hidden)
+        .modernWindowChrome()
+        .frame(minWidth: 680, minHeight: 460)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Toggle(isOn: $engine.showSilentApps) {
+                    Label("Show silent apps", systemImage: engine.showSilentApps ? "eye" : "eye.slash")
+                }
+                .help("Also list apps that aren't playing audio right now")
+            }
+        }
+        .navigationTitle("Audio Mixer")
+        .navigationSubtitle(subtitle)
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "speaker.wave.2.fill").foregroundStyle(.secondary)
-            Text("System default output").font(.headline)
-            Picker("", selection: Binding(
-                get: { engine.defaultDeviceUID },
-                set: { engine.setDefaultOutput(uid: $0) }
-            )) {
-                ForEach(engine.devices) { device in
-                    Text(device.name).tag(device.uid)
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 300)
-            Spacer()
-            Text("Apps set to “System default” follow this.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(12)
+    private var subtitle: String {
+        let routed = engine.visibleApps.filter(engine.isRouted).count
+        return routed == 0 ? "Nothing routed" : "\(routed) routed"
     }
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Spacer()
-            Image(systemName: "waveform").font(.system(size: 36)).foregroundStyle(.tertiary)
-            Text("No apps are playing audio right now.").foregroundStyle(.secondary)
-            Text("Start playback somewhere, or turn on “Show silent apps” to assign an app ahead of time.")
-                .font(.caption).foregroundStyle(.tertiary)
-            Spacer()
+        ContentUnavailableView {
+            Label("No apps playing audio", systemImage: "waveform.slash")
+        } description: {
+            Text("Start playback somewhere, or show silent apps to assign one ahead of time.")
+        } actions: {
+            Button("Show silent apps") { engine.showSilentApps = true }
+                .modernButton()
         }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var footer: some View {
-        HStack {
-            Toggle("Show silent apps", isOn: $engine.showSilentApps)
-                .toggleStyle(.switch).controlSize(.small)
-            Spacer()
-            Text("\(engine.visibleApps.filter(engine.isRouted).count) routed")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.top, 40)
     }
 }
 
-struct AppRow: View {
+// MARK: - Default output
+
+struct DefaultOutputCard: View {
+    @EnvironmentObject private var engine: MixerEngine
+
+    var body: some View {
+        HStack(spacing: 14) {
+            DeviceGlyph(name: engine.devices.first { $0.uid == engine.defaultDeviceUID }?.name ?? "", size: 44)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("System default output").font(.headline)
+                Text("Apps set to “System default” follow this device.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+
+            DevicePicker(
+                selection: Binding(get: { engine.defaultDeviceUID }, set: { engine.setDefaultOutput(uid: $0) }),
+                devices: engine.devices,
+                includeSystemDefault: false
+            )
+        }
+        .padding(16)
+        .cardBackground(prominent: true)
+    }
+}
+
+// MARK: - App list
+
+struct AppSection: View {
+    let title: String
+    let apps: [AudioApp]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.title3.weight(.semibold))
+                .padding(.leading, 4)
+            VStack(spacing: 10) {
+                ForEach(apps) { app in AppCard(app: app) }
+            }
+        }
+    }
+}
+
+struct AppCard: View {
     @EnvironmentObject private var engine: MixerEngine
     let app: AudioApp
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 12) {
-                Image(nsImage: engine.icon(for: app))
-                    .resizable().frame(width: 32, height: 32)
+    private var routed: Bool { engine.isRouted(app) }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(app.name).font(.body).lineLimit(1)
-                    HStack(spacing: 4) {
-                        Circle().fill(app.isPlaying ? Color.green : Color.secondary.opacity(0.4))
-                            .frame(width: 7, height: 7)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                Image(nsImage: engine.icon(for: app))
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                    .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(app.name).font(.headline).lineLimit(1)
+                    HStack(spacing: 6) {
+                        StatusDot(active: app.isPlaying)
                         Text(app.isPlaying ? "Playing" : "Silent")
-                        if engine.isRouted(app) {
-                            Text("· routed").foregroundStyle(.blue)
+                        if routed {
+                            Text("·")
+                            Label("Routed", systemImage: "arrow.triangle.branch")
+                                .labelStyle(.titleAndIcon)
+                                .foregroundStyle(.tint)
                         }
                     }
                     .font(.caption).foregroundStyle(.secondary)
                 }
-                .frame(width: 170, alignment: .leading)
+                .frame(minWidth: 140, alignment: .leading)
 
-                Picker("", selection: Binding(
-                    get: { engine.deviceUID(for: app) },
-                    set: { engine.assign(app, toDeviceUID: $0) }
-                )) {
-                    Text("System default").tag("")
-                    Divider()
-                    ForEach(engine.devices) { device in
-                        Text(device.name).tag(device.uid)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 220)
+                Spacer(minLength: 12)
 
-                Slider(value: Binding(
-                    get: { Double(engine.volume(for: app)) },
-                    set: { engine.setVolume(app, Float($0)) }
-                ), in: 0...1)
-                .frame(minWidth: 90)
-                .disabled(!engine.isRouted(app))
-                .help(engine.isRouted(app) ? "Per-app volume" : "Volume is available once the app is routed to a device")
-
-                LevelMeter(level: engine.levels[app.id] ?? 0)
-                    .frame(width: 60, height: 8)
-                    .help(engine.diagnostics(for: app) ?? "")
+                DevicePicker(
+                    selection: Binding(get: { engine.deviceUID(for: app) }, set: { engine.assign(app, toDeviceUID: $0) }),
+                    devices: engine.devices,
+                    includeSystemDefault: true
+                )
             }
+
+            if routed {
+                HStack(spacing: 10) {
+                    Image(systemName: "speaker.fill").foregroundStyle(.secondary).font(.caption)
+                    VStack(spacing: 4) {
+                        Slider(value: Binding(
+                            get: { Double(engine.volume(for: app)) },
+                            set: { engine.setVolume(app, Float($0)) }
+                        ), in: 0...1)
+                        .controlSize(.small)
+                        LevelMeter(level: engine.levels[app.id] ?? 0)
+                            .frame(height: 4)
+                            .padding(.horizontal, 2)
+                    }
+                    Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary).font(.caption)
+                    Text("\(Int((engine.volume(for: app) * 100).rounded()))%")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, alignment: .trailing)
+                }
+                .padding(.leading, 54)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             if let error = engine.routeErrors[app.id] {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption).foregroundStyle(.orange)
-                    .lineLimit(2)
+                    .lineLimit(3)
+                    .padding(.leading, 54)
             }
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .cardBackground(prominent: false)
+        .animation(.snappy(duration: 0.25), value: routed)
     }
 }
 
+// MARK: - Shared controls
+
+/// Menu-style device chooser rendered as a glass/bordered pill.
+struct DevicePicker: View {
+    @Binding var selection: String
+    let devices: [AudioDevice]
+    let includeSystemDefault: Bool
+
+    private var currentName: String {
+        if selection.isEmpty { return includeSystemDefault ? "System default" : "—" }
+        return devices.first { $0.uid == selection }?.name ?? "Unavailable device"
+    }
+
+    var body: some View {
+        Menu {
+            if includeSystemDefault {
+                Button {
+                    selection = ""
+                } label: {
+                    Label("System default", systemImage: selection.isEmpty ? "checkmark" : "")
+                }
+                Divider()
+            }
+            ForEach(devices) { device in
+                Button {
+                    selection = device.uid
+                } label: {
+                    Label(device.name, systemImage: selection == device.uid ? "checkmark" : "")
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                DeviceGlyph(name: selection.isEmpty ? "" : currentName, size: 14, plain: true)
+                Text(currentName).lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: 240)
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .modernButton()
+    }
+}
+
+/// Picks an SF Symbol for a device based on its name.
+struct DeviceGlyph: View {
+    let name: String
+    var size: CGFloat
+    var plain = false
+
+    private var symbol: String {
+        let n = name.lowercased()
+        if n.isEmpty { return "circle.dotted" }
+        if ["headphone", "headset", "hyperx", "airpods", "buds", "beats"].contains(where: n.contains) { return "headphones" }
+        if ["display", "hdmi", "monitor", "arzopa", "lg ", "dell", "samsung"].contains(where: n.contains) { return "display" }
+        if ["mixer", "maono", "focusrite", "scarlett", "interface", "rode", "elgato"].contains(where: n.contains) { return "slider.vertical.3" }
+        if n.contains("teams") || n.contains("zoom") || n.contains("virtual") { return "waveform.circle" }
+        return "hifispeaker.fill"
+    }
+
+    var body: some View {
+        if plain {
+            Image(systemName: symbol).font(.system(size: size, weight: .medium))
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: size * 0.5, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: size, height: size)
+                .background(
+                    LinearGradient(colors: [.accentColor, .accentColor.opacity(0.7)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                )
+        }
+    }
+}
+
+struct StatusDot: View {
+    let active: Bool
+    var body: some View {
+        Circle()
+            .fill(active ? Color.green : Color.secondary.opacity(0.35))
+            .frame(width: 7, height: 7)
+            .shadow(color: active ? .green.opacity(0.6) : .clear, radius: 3)
+    }
+}
+
+/// dB-scaled peak meter: -60 dBFS … 0 dBFS → empty … full.
 struct LevelMeter: View {
-    let level: Float   // linear peak 0...1
+    let level: Float
 
     private var fraction: CGFloat {
         guard level > 0 else { return 0 }
@@ -138,11 +283,49 @@ struct LevelMeter: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.secondary.opacity(0.15))
+                Capsule().fill(Color.primary.opacity(0.08))
                 Capsule()
-                    .fill(level > 0.9 ? Color.red : Color.green)
-                    .frame(width: max(0, geo.size.width * fraction))
+                    .fill(LinearGradient(colors: [.green, .green, .yellow, .red],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .frame(width: geo.size.width)
+                    .mask(alignment: .leading) {
+                        Capsule().frame(width: max(0, geo.size.width * fraction))
+                    }
             }
         }
+        .animation(.linear(duration: 0.05), value: fraction)
+    }
+}
+
+// MARK: - Liquid Glass with graceful fallback
+
+extension View {
+    /// Card surface: Liquid Glass on macOS 26+, material elsewhere.
+    @ViewBuilder
+    func cardBackground(prominent: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        if #available(macOS 26, *) {
+            self.glassEffect(prominent ? .regular.tint(.accentColor.opacity(0.12)) : .regular, in: shape)
+        } else {
+            self
+                .background(prominent ? AnyShapeStyle(.thickMaterial) : AnyShapeStyle(.regularMaterial), in: shape)
+                .overlay(shape.strokeBorder(.white.opacity(0.08)))
+        }
+    }
+
+    @ViewBuilder
+    func modernButton() -> some View {
+        if #available(macOS 26, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.bordered)
+        }
+    }
+
+    /// Translucent window with the toolbar floating over content.
+    func modernWindowChrome() -> some View {
+        self
+            .containerBackground(.thinMaterial, for: .window)
+            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
     }
 }
