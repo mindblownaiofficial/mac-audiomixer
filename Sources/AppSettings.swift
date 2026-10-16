@@ -52,9 +52,15 @@ final class AppSettings: ObservableObject {
 
     /// Call from applicationWillFinishLaunching, while the launch Apple Event is current.
     func detectLoginLaunch() {
-        guard let event = NSAppleEventManager.shared().currentAppleEvent,
-              event.eventClass == kCoreEventClass, event.eventID == kAEOpenApplication,
-              let prop = event.paramDescriptor(forKeyword: keyAEPropData) else { return }
+        guard let event = NSAppleEventManager.shared().currentAppleEvent else {
+            DebugLog.write("launch: no current Apple Event"); return
+        }
+        let prop = event.paramDescriptor(forKeyword: keyAEPropData)
+        DebugLog.write(String(format: "launch: class=0x%x id=0x%x propData=%@ enum=0x%x (login item=0x%x)",
+                              event.eventClass, event.eventID, prop.map { "\($0)" } ?? "nil",
+                              prop?.enumCodeValue ?? 0, keyAELaunchedAsLogInItem))
+        guard event.eventClass == kCoreEventClass, event.eventID == kAEOpenApplication,
+              let prop, prop.descriptorType == typeEnumerated || prop.descriptorType == typeType else { return }
         launchedAtLogin = prop.enumCodeValue == keyAELaunchedAsLogInItem
     }
 

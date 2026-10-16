@@ -187,7 +187,6 @@ struct AppCard: View {
                         .frame(width: 36, alignment: .trailing)
                 }
                 .padding(.leading, 54)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if let error = engine.routeErrors[app.id] {
@@ -199,7 +198,6 @@ struct AppCard: View {
         }
         .padding(14)
         .cardBackground(prominent: false)
-        .animation(.snappy(duration: 0.25), value: routed)
     }
 }
 
@@ -315,7 +313,6 @@ struct LevelMeter: View {
                     }
             }
         }
-        .animation(.linear(duration: 0.05), value: fraction)
     }
 }
 
@@ -327,7 +324,12 @@ extension View {
     func cardBackground(prominent: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
         if #available(macOS 26, *) {
-            self.glassEffect(prominent ? .regular.tint(.accentColor.opacity(0.12)) : .regular, in: shape)
+            // Glass goes on an empty background layer: content rendered *inside* a glassEffect
+            // (sliders, animated meters, tinted labels) comes out mirrored or as magenta tiles.
+            self.background {
+                Color.clear
+                    .glassEffect(prominent ? .regular.tint(.accentColor.opacity(0.12)) : .regular, in: shape)
+            }
         } else {
             self
                 .background(prominent ? AnyShapeStyle(.thickMaterial) : AnyShapeStyle(.regularMaterial), in: shape)

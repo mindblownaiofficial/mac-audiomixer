@@ -31,8 +31,11 @@ echo "Built: $PWD/$APP"
 
 # ./build.sh --install  → copy into /Applications and (re)launch from there
 if [[ "${1:-}" == "--install" ]]; then
-  pkill -x AudioMixer 2>/dev/null || true
-  sleep 0.5
+  # Ask the running copy to quit so it releases its audio taps before we replace it.
+  if pgrep -x AudioMixer >/dev/null; then
+    osascript -e 'tell application "Audio Mixer" to quit' >/dev/null 2>&1 || pkill -x AudioMixer || true
+    for _ in {1..50}; do pgrep -x AudioMixer >/dev/null || break; sleep 0.2; done
+  fi
   rm -rf "/Applications/Audio Mixer.app"
   cp -R "$APP" "/Applications/Audio Mixer.app"
   open "/Applications/Audio Mixer.app"

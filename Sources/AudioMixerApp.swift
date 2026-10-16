@@ -92,11 +92,21 @@ struct SettingsMenuItems: View {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var termSource: DispatchSourceSignal?
+
     func applicationWillFinishLaunching(_ notification: Notification) {
-        AppSettings.shared.detectLoginLaunch()
+        // `kill`/`pkill` send SIGTERM, which bypasses applicationWillTerminate and leaves
+        // taps alive inside coreaudiod. Turn it into a normal quit so routes are released.
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { NSApp.terminate(nil) }
+        source.resume()
+        termSource = source
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The launch ('oapp') Apple Event is current here, not in willFinishLaunching.
+        AppSettings.shared.detectLoginLaunch()
         NSApp.setActivationPolicy(.regular)
         if !AppSettings.shared.shouldHideWindowOnce {
             NSApp.activate(ignoringOtherApps: true)

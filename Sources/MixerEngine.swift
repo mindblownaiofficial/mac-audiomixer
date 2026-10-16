@@ -17,7 +17,10 @@ final class MixerEngine: ObservableObject {
     @Published var showSilentApps = false
 
     private var routes: [String: AppRoute] = [:]
+    private var pendingRoutes: Set<String> = []
     private var failedAt: [String: Date] = [:]
+    /// Core Audio calls can stall for seconds (HAL timeouts); never make them on the main thread.
+    private let routeQueue = DispatchQueue(label: "com.kingswood.audiomixer.routes", qos: .userInitiated)
     private var icons: [String: NSImage] = [:]
     private var refreshTimer: Timer?
     private var meterTimer: Timer?
@@ -29,7 +32,8 @@ final class MixerEngine: ObservableObject {
     private init() {
         assignments = defaults.dictionary(forKey: assignmentsKey) as? [String: String] ?? [:]
         volumes = (defaults.dictionary(forKey: volumesKey) as? [String: Double] ?? [:]).mapValues { Float($0) }
-        refresh()
+        // First refresh after launch finishes so the window appears immediately.
+        DispatchQueue.main.async { [weak self] in self?.refresh() }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in self?.refresh() }
         meterTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20, repeats: true) { [weak self] _ in self?.updateLevels() }
         DebugLog.write("launched; default output = \(defaultDeviceUID)")
@@ -86,8 +90,9 @@ final class MixerEngine: ObservableObject {
     }
 
     func shutdown() {
-        for route in routes.values { route.stop() }
+        let live = Array(routes.values)
         routes.removeAll()
+        routeQueue.sync { live.forEach { $0.stop() } }
     }
 
     // MARK: - Discovery & reconciliation
@@ -109,28 +114,45 @@ final class MixerEngine: ObservableObject {
 
             let ids = Set(app.processObjectIDs)
             if let route = routes[app.id], route.device == device, route.processObjectIDs == ids { continue }
+            if pendingRoutes.contains(app.id) { continue }
 
             // Back off after a failure so a denied permission doesn't re-prompt every second.
             if let failed = failedAt[app.id], Date().timeIntervalSince(failed) < 10 { continue }
 
-            routes[app.id]?.stop()
-            routes[app.id] = nil
-            do {
-                routes[app.id] = try AppRoute(appKey: app.id, appName: app.name,
-                                              processObjectIDs: app.processObjectIDs,
-                                              device: device, volume: volume(for: app))
-                routeErrors[app.id] = nil
-                failedAt[app.id] = nil
-                DebugLog.write("route OK: \(app.name) pids=\(app.pids) objects=\(app.processObjectIDs) -> \(device.name) [\(device.uid)] ch=\(device.outputChannels)")
-            } catch {
-                routeErrors[app.id] = error.localizedDescription
-                failedAt[app.id] = Date()
-                DebugLog.write("route FAILED: \(app.name) -> \(device.name): \(error.localizedDescription)")
+            let previous = routes.removeValue(forKey: app.id)
+            pendingRoutes.insert(app.id)
+            let key = app.id, name = app.name, processIDs = app.processObjectIDs, volume = volume(for: app)
+
+            routeQueue.async { [weak self] in
+                previous?.stop()
+                let result = Result {
+                    try AppRoute(appKey: key, appName: name, processObjectIDs: processIDs, device: device, volume: volume)
+                }
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.pendingRoutes.remove(key)
+                    switch result {
+                    case .success(let route):
+                        // The assignment may have changed while the route was being built.
+                        if self.assignments[key] == device.uid {
+                            self.routes[key] = route
+                            self.routeErrors[key] = nil
+                            self.failedAt[key] = nil
+                            DebugLog.write("route OK: \(name) objects=\(processIDs) -> \(device.name) [\(device.uid)] ch=\(device.outputChannels)")
+                        } else {
+                            self.routeQueue.async { route.stop() }
+                        }
+                    case .failure(let error):
+                        self.routeErrors[key] = error.localizedDescription
+                        self.failedAt[key] = Date()
+                        DebugLog.write("route FAILED: \(name) -> \(device.name): \(error.localizedDescription)")
+                    }
+                }
             }
         }
         for (key, route) in routes where !keep.contains(key) {
-            route.stop()
             routes[key] = nil
+            routeQueue.async { route.stop() }
         }
     }
 
