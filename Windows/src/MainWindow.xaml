@@ -1,0 +1,103 @@
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="clr-namespace:AudioMixer;assembly=AudioMixer"
+      Background="{StaticResource InkBrush}"
+      TextElement.FontFamily="{StaticResource UiFont}" TextElement.FontSize="12"
+      TextElement.Foreground="{StaticResource CreamBrush}"
+      UseLayoutRounding="True" SnapsToDevicePixels="True">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="58"/>
+        <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header doubles as the window's title bar, as in Cutroom. -->
+    <Border Grid.Row="0" Background="{StaticResource HeaderBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
+        <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button x:Name="MinimizeButton" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="Minimize"/>
+                <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" ToolTip="Maximize"/>
+                <Button x:Name="CloseButton" Style="{StaticResource CaptionButton}" Background="#E81123" Content="&#xE8BB;" ToolTip="Close to tray"/>
+            </StackPanel>
+
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0"
+                        WindowChrome.IsHitTestVisibleInChrome="True">
+                <ToggleButton x:Name="SilentToggle" Style="{StaticResource GhostButton}" IsChecked="{Binding ShowSilentApps, Mode=TwoWay}"
+                              ToolTip="Also list apps that aren't playing audio right now">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0"/>
+                        <TextBlock Text="Silent apps" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </ToggleButton>
+                <Button x:Name="SettingsButton" Style="{StaticResource GhostButton}" Width="34" Padding="0" Margin="8,0,0,0"
+                        ToolTip="Launch at login and other options">
+                    <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="14"/>
+                </Button>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0,0,0">
+                <Image x:Name="BrandMark" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Audio Mixer" FontSize="14" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,1,0,0"/>
+                </StackPanel>
+            </StackPanel>
+        </DockPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <StackPanel MaxWidth="760" Margin="24,24,24,14">
+
+            <!-- System default output -->
+            <Border Background="{StaticResource Panel2Brush}" BorderBrush="{StaticResource LineStrongBrush}" BorderThickness="1"
+                    CornerRadius="12" Padding="16" Margin="0,0,0,10">
+                <DockPanel>
+                    <ComboBox DockPanel.Dock="Right" Style="{StaticResource Picker}" VerticalAlignment="Center" Margin="12,0,0,0"
+                              ItemsSource="{Binding Devices}" SelectedValue="{Binding DefaultDeviceId, Mode=TwoWay}"
+                              ToolTip="The device Windows uses for everything that is not routed"/>
+                    <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="11" Margin="0,0,14,0" VerticalAlignment="Center">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#6455FF" Offset="0"/>
+                                <GradientStop Color="#4F3DFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <TextBlock Text="{Binding DefaultGlyph}" FontFamily="{StaticResource IconFont}" FontSize="20" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="System default output" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Text="Apps set to “System default” follow this device." FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <DockPanel Visibility="{Binding StatusVisibility}" Margin="4,4,4,10">
+                <TextBlock DockPanel.Dock="Left" Text="&#xE946;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                           Foreground="{StaticResource MutedBrush}" Margin="0,2,8,0"/>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+            </DockPanel>
+
+            <!-- Nothing to show -->
+            <StackPanel Visibility="{Binding EmptyVisibility}" HorizontalAlignment="Center" Margin="0,54,0,30">
+                <TextBlock Text="&#xE74F;" FontFamily="{StaticResource IconFont}" FontSize="34" HorizontalAlignment="Center"
+                           Foreground="{StaticResource MutedBrush}"/>
+                <TextBlock Text="No apps playing audio" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,16,0,0"/>
+                <TextBlock Text="Start playback somewhere, or show silent apps to assign one ahead of time." MaxWidth="340"
+                           TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0"/>
+                <Button x:Name="EmptyShowSilentButton" Style="{StaticResource PrimaryButton}" Content="Show silent apps"
+                        HorizontalAlignment="Center" Padding="16,0" Margin="0,18,0,0"/>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding PlayingVisibility}" Margin="0,10,0,0">
+                <TextBlock Text="Now playing" FontSize="13" FontWeight="SemiBold" Margin="4,0,0,10"/>
+                <ItemsControl ItemsSource="{Binding Playing}" ItemTemplate="{StaticResource AppCardTemplate}" Focusable="False"/>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding SilentVisibility}" Margin="0,10,0,0">
+                <TextBlock Text="Silent" FontSize="13" FontWeight="SemiBold" Margin="4,0,0,10"/>
+                <ItemsControl ItemsSource="{Binding Silent}" ItemTemplate="{StaticResource AppCardTemplate}" Focusable="False"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Grid>
