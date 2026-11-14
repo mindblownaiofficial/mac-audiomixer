@@ -129,7 +129,8 @@ $sums = foreach ($file in $outputs) {
     $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
     "$hash  $(Split-Path -Leaf $file)"
 }
-$sums | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
+# LF line endings so `sha256sum -c` also works on macOS and Linux.
+[IO.File]::WriteAllText((Join-Path $dist 'SHA256SUMS.txt'), (($sums -join "`n") + "`n"), [Text.Encoding]::ASCII)
 
 Write-Host ''
 Write-Host "Built Audio Mixer $Version for Windows$(if ($SignThumbprint) { ' (signed)' } else { ' (unsigned)' }):"
